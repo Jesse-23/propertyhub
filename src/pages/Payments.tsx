@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { usePayments, useCreatePayment, useUpdatePayment, PaymentWithDetails, PaymentInsert } from "@/hooks/usePayments";
 import { useTenants } from "@/hooks/useTenants";
 import { useProperties } from "@/hooks/useProperties";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePaystack } from "@/hooks/usePaystack";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, CreditCard, MoreVertical, Edit, CheckCircle, Loader2, TrendingUp, Clock, AlertTriangle } from "lucide-react";
+import { Plus, Search, CreditCard, MoreVertical, Edit, CheckCircle, Loader2, Clock, AlertTriangle, Banknote } from "lucide-react";
 import { format } from "date-fns";
 
 const statusConfig = {
@@ -47,17 +49,20 @@ const statusConfig = {
 };
 
 export default function Payments() {
-  const { role } = useAuth();
-  const { data: payments, isLoading } = usePayments();
+  const { role, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: payments, isLoading, refetch } = usePayments();
   const { data: tenants } = useTenants();
   const { data: properties } = useProperties();
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
+  const { initializePayment, verifyPayment, isLoading: paystackLoading } = usePaystack();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentWithDetails | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     tenant_id: "",
@@ -71,6 +76,30 @@ export default function Payments() {
   });
 
   const canManage = role === "admin" || role === "property_manager";
+
+  // Handle Paystack callback verification
+  useEffect(() => {
+    const verifyRef = searchParams.get("verify");
+    const reference = searchParams.get("reference");
+    
+    if (verifyRef && reference) {
+      verifyPayment(reference).then(() => {
+        setSearchParams({});
+        refetch();
+      });
+    }
+  }, [searchParams]);
+
+  const handlePayNow = async (payment: PaymentWithDetails) => {
+    if (!user?.email) return;
+    setPayingId(payment.id);
+    await initializePayment({
+      paymentId: payment.id,
+      email: user.email,
+      amount: payment.amount,
+    });
+    setPayingId(null);
+  };
 
   const filteredPayments = payments?.filter((payment) => {
     const matchesSearch = payment.property?.title?.toLowerCase().includes(search.toLowerCase()) || 
@@ -289,6 +318,15 @@ export default function Payments() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {payment.status === "pending" || payment.status === "overdue" ? (
+                                <DropdownMenuItem 
+                                  onClick={() => handlePayNow(payment)}
+                                  disabled={payingId === payment.id}
+                                >
+                                  <Banknote className="mr-2 h-4 w-4" />
+                                  {payingId === payment.id ? "Processing..." : "Pay with Paystack"}
+                                </DropdownMenuItem>
+                              ) : null}
                               {canManage && payment.status !== "completed" && (
                                 <DropdownMenuItem onClick={() => markAsCompleted(payment)}>
                                   <CheckCircle className="mr-2 h-4 w-4" />
