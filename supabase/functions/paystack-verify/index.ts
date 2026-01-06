@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,21 +50,28 @@ serve(async (req) => {
       );
     }
 
-    // Update payment status in database
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    const { error: updateError } = await supabase
-      .from("payments")
-      .update({
-        status: "completed",
-        payment_date: new Date().toISOString(),
-        payment_method: "paystack",
-        payment_reference: reference,
-      })
-      .eq("id", reference);
+    // Update payment status in database using REST API
+    const updateResponse = await fetch(
+      `${supabaseUrl}/rest/v1/payments?id=eq.${reference}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseServiceKey,
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({
+          status: "completed",
+          payment_date: new Date().toISOString(),
+          payment_method: "paystack",
+          payment_reference: reference,
+        }),
+      }
+    );
 
-    if (updateError) {
-      console.error("Error updating payment:", updateError);
+    if (!updateResponse.ok) {
+      console.error("Error updating payment:", await updateResponse.text());
     }
 
     return new Response(
