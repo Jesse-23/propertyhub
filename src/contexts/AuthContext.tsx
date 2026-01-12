@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer Supabase calls with setTimeout to prevent deadlock
+          // Supabase calls with setTimeout to prevent deadlock
           setTimeout(() => {
             fetchUserRole(session.user.id);
           }, 0);

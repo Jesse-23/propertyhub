@@ -16,7 +16,7 @@ export default function Index() {
           <span className="font-display font-bold text-xl">PropertyHub</span>
         </div>
         <Link to={user ? "/dashboard" : "/auth"}>
-          <Button variant="hero" size="lg">
+          <Button variant="hero" size="lg" className="h-10 px-4 md:h-12 md:px-8">
             {user ? "Dashboard" : "Get Started"}
             <ArrowRight className="h-4 w-4" />
           </Button>
